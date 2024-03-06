@@ -547,7 +547,7 @@ const reducer = <TFormValues extends FormValues = FormValues>(
         draft.values = setIn(
           state.values,
           action.payload.field,
-          newValue.length > 0 ? newValue : undefined
+          Array.isArray(newValue) ? newValue : undefined
         );
 
         break;

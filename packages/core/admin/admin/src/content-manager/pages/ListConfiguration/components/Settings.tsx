@@ -82,7 +82,7 @@ const Settings = () => {
 
   React.useEffect(() => {
     if (sortOptionsSorted.findIndex((opt) => opt.value === currentSortBy) === -1) {
-      onChange('settings.defaultSortBy', sortOptionsSorted[0].value);
+      onChange('settings.defaultSortBy', sortOptionsSorted[0]?.value);
     }
   }, [currentSortBy, onChange, sortOptionsSorted]);
 
