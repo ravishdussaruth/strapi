@@ -61,12 +61,12 @@ const extractRelationIds = <T extends Attribute.RelationKind.Any>(
 
       // { connect: { id: id, position: { before: id } } }
       if (position?.before) {
-        ids.push(...handlePrimitive({ ...position, id: position.before }));
+        ids.push(...handlePrimitive({ ...position, documentId: position.before }));
       }
 
       // { connect: { id: id, position: { after: id } } }
       if (position?.after) {
-        ids.push(...handlePrimitive({ ...position, id: position.after }));
+        ids.push(...handlePrimitive({ ...position, documentId: position.after }));
       }
     });
   }
