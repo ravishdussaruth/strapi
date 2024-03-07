@@ -158,9 +158,9 @@ const RelationsField = React.forwardRef<HTMLDivElement, RelationsFieldProps>(
         mainField: props.mainField,
       };
 
-      const transformations = pipe(removeDisconnected(ctx), addLabelAndHref(ctx));
+      const transformations = pipe(removeDisconnected(ctx), filterDuplicates, addLabelAndHref(ctx));
 
-      return transformations([...data.results, ...(field.value?.connect ?? [])]);
+      return transformations([...(field.value?.connect ?? []), ...data.results]);
     }, [
       data.results,
       field.value,
@@ -250,20 +250,38 @@ const removeDisconnected =
     });
 
 /**
+ * @description Removes duplicate relations from the array, we have this because
+ * if we move a relation item in the list that is not in the connect array, it's
+ * then added to the connect array, so it will show twice.
+ */
+const filterDuplicates = (relations: RelationResult[]): RelationResult[] => {
+  return relations.filter(
+    (rel, index, self) => self.findIndex((r) => r.documentId === rel.documentId) === index
+  );
+};
+
+/**
  * @description Adds a label and href to the relation object we use this to render
  * a better UI where we can link to the relation and display a human-readable label.
  */
 const addLabelAndHref =
   ({ mainField, href }: TransformationContext) =>
   (relations: RelationResult[]): Relation[] =>
-    relations.map((relation) => ({
-      ...relation,
-      label:
-        mainField && relation[mainField] && typeof relation[mainField] === 'string'
-          ? (relation[mainField] as string)
-          : relation.documentId,
-      href: `${href}/${relation.documentId}`,
-    }));
+    relations.map((relation) => {
+      const { documentId, locale, position, status } = relation;
+      return {
+        documentId,
+        locale,
+        status,
+        position,
+        [mainField]: relation[mainField],
+        label:
+          mainField && relation[mainField] && typeof relation[mainField] === 'string'
+            ? (relation[mainField] as string)
+            : relation.documentId,
+        href: `${href}/${relation.documentId}`,
+      };
+    });
 
 /* -------------------------------------------------------------------------------------------------
  * RelationsInput
@@ -373,7 +391,9 @@ const RelationsInput = ({
       return;
     }
 
-    addFieldRow(`${name}.connect`, relation);
+    const { href: _href, label: _label, ...item } = relation;
+
+    addFieldRow(`${name}.connect`, item);
   };
 
   const handleLoadMore = () => {
@@ -472,6 +492,12 @@ const RelationsList = ({ data, disabled, name, isLoading, relationType }: Relati
   const removeFieldRow = useForm('RelationsList', (state) => state.removeFieldRow);
   const addFieldRow = useForm('RelationsList', (state) => state.addFieldRow);
 
+  const [orderedData, setOrderedData] = React.useState<Relation[]>(data);
+
+  React.useEffect(() => {
+    setOrderedData(data);
+  }, [data]);
+
   React.useEffect(() => {
     if (data.length <= RELATIONS_TO_DISPLAY) {
       return setOverflow(undefined);
@@ -509,7 +535,7 @@ const RelationsList = ({ data, disabled, name, isLoading, relationType }: Relati
   const getItemPos = (index: number) => `${index + 1} of ${data.length}`;
 
   const handleMoveItem: UseDragAndDropOptions['onMoveItem'] = (oldIndex, newIndex) => {
-    const item = data[oldIndex];
+    const item = orderedData[oldIndex];
 
     setLiveText(
       formatMessage(
@@ -523,10 +549,16 @@ const RelationsList = ({ data, disabled, name, isLoading, relationType }: Relati
         }
       )
     );
+
+    const updatedData = [...orderedData];
+    const [removed] = updatedData.splice(oldIndex, 1);
+    updatedData.splice(newIndex, 0, removed);
+
+    setOrderedData(updatedData);
   };
 
   const handleGrabItem: UseDragAndDropOptions['onGrabItem'] = (index) => {
-    const item = data[index];
+    const item = orderedData[index];
 
     setLiveText(
       formatMessage(
@@ -543,7 +575,7 @@ const RelationsList = ({ data, disabled, name, isLoading, relationType }: Relati
   };
 
   const handleDropItem: UseDragAndDropOptions['onDropItem'] = (index) => {
-    const item = data[index];
+    const { href: _href, label, ...item } = orderedData[index];
 
     setLiveText(
       formatMessage(
@@ -552,15 +584,38 @@ const RelationsList = ({ data, disabled, name, isLoading, relationType }: Relati
           defaultMessage: `{item}, dropped. Final position in list: {position}.`,
         },
         {
-          item: item.label ?? item.documentId,
+          item: label ?? item.documentId,
           position: getItemPos(index),
         }
       )
     );
+
+    /**
+     * check if the item we've moved is part of the connect array
+     * if it is, we mutate that existing item to add the position information.
+     *
+     * Otherwise, we add it to the connect array with the position information.
+     */
+    const indexOfRelationInConnectArray =
+      field.value?.connect?.findIndex((rel) => rel.documentId === item.documentId) ?? -1;
+
+    const afterItem = orderedData[index + 1] ? orderedData[index + 1] : null;
+    const newPosition = afterItem
+      ? { before: afterItem.documentId, locale: afterItem.locale, status: afterItem.status }
+      : { end: true };
+
+    if (indexOfRelationInConnectArray >= 0) {
+      field.onChange(`name${name}.connect.${indexOfRelationInConnectArray}`, {
+        ...item,
+        position: newPosition,
+      });
+    } else {
+      addFieldRow(`${name}.connect`, { ...item, position: newPosition });
+    }
   };
 
   const handleCancel: UseDragAndDropOptions['onCancel'] = (index) => {
-    const item = data[index];
+    const item = orderedData[index];
 
     setLiveText(
       formatMessage(
@@ -608,10 +663,12 @@ const RelationsList = ({ data, disabled, name, isLoading, relationType }: Relati
   ].includes(relationType);
 
   const dynamicListHeight =
-    data.length > RELATIONS_TO_DISPLAY
-      ? Math.min(data.length, RELATIONS_TO_DISPLAY) * (RELATION_ITEM_HEIGHT + RELATION_GUTTER) +
+    orderedData.length > RELATIONS_TO_DISPLAY
+      ? Math.min(orderedData.length, RELATIONS_TO_DISPLAY) *
+          (RELATION_ITEM_HEIGHT + RELATION_GUTTER) +
         RELATION_ITEM_HEIGHT / 2
-      : Math.min(data.length, RELATIONS_TO_DISPLAY) * (RELATION_ITEM_HEIGHT + RELATION_GUTTER);
+      : Math.min(orderedData.length, RELATIONS_TO_DISPLAY) *
+        (RELATION_ITEM_HEIGHT + RELATION_GUTTER);
 
   return (
     <ShadowBox overflowDirection={overflow}>
@@ -627,7 +684,7 @@ const RelationsList = ({ data, disabled, name, isLoading, relationType }: Relati
         height={dynamicListHeight}
         ref={listRef}
         outerRef={outerListRef}
-        itemCount={data.length}
+        itemCount={orderedData.length}
         itemSize={RELATION_ITEM_HEIGHT + RELATION_GUTTER}
         itemData={{
           ariaDescribedBy: ariaDescriptionId,
@@ -639,9 +696,9 @@ const RelationsList = ({ data, disabled, name, isLoading, relationType }: Relati
           handleMoveItem,
           name,
           handleDisconnect,
-          relations: data,
+          relations: orderedData,
         }}
-        itemKey={(index) => data[index].id}
+        itemKey={(index) => orderedData[index].id}
         innerElementType="ol"
       >
         {ListItem}
