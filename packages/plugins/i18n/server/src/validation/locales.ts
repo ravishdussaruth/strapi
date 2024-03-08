@@ -1,28 +1,23 @@
-import { prop } from 'lodash/fp';
-import { yup, validateYupSchema } from '@strapi/utils';
+import { z } from '@strapi/utils';
 
-import { isoLocales } from '../constants';
+import { isoCodes } from '../constants';
 
-const allowedLocaleCodes = isoLocales.map(prop('code'));
-
-const createLocaleSchema = yup
-  .object()
-  .shape({
-    name: yup.string().max(50).nullable(),
-    code: yup.string().oneOf(allowedLocaleCodes).required(),
-    isDefault: yup.boolean().required(),
+const createLocaleSchema = z
+  .object({
+    name: z.string().max(50).nullish(),
+    code: z.enum(isoCodes),
+    isDefault: z.boolean(),
   })
-  .noUnknown();
+  .strict();
 
-const updateLocaleSchema = yup
-  .object()
-  .shape({
-    name: yup.string().min(1).max(50).nullable(),
-    isDefault: yup.boolean(),
+const updateLocaleSchema = z
+  .object({
+    name: z.string().min(1).max(50).nullish(),
+    isDefault: z.boolean().optional(),
   })
-  .noUnknown();
+  .strict();
 
-const validateCreateLocaleInput = validateYupSchema(createLocaleSchema);
-const validateUpdateLocaleInput = validateYupSchema(updateLocaleSchema);
+const validateCreateLocaleInput = z.validate(createLocaleSchema);
+const validateUpdateLocaleInput = z.validate(updateLocaleSchema);
 
 export { validateCreateLocaleInput, validateUpdateLocaleInput };

@@ -1,23 +1,25 @@
-import { yup, validateYupSchema } from '@strapi/utils';
+import { Common } from '@strapi/strapi';
+import { z } from '@strapi/utils';
 
-import { get } from 'lodash/fp';
+import { get, isNil } from 'lodash/fp';
 
-const validateGetNonLocalizedAttributesSchema = yup
-  .object()
-  .shape({
-    model: yup.string().required(),
-    id: yup.mixed().when('model', {
-      is: (model: any) => get('kind', strapi.contentType(model)) === 'singleType',
-      then: yup.strapiID().nullable(),
-      otherwise: yup.strapiID().required(),
-    }),
-    locale: yup.string().required(),
+const validateGetNonLocalizedAttributesSchema = z
+  .object({
+    model: z.string(),
+    id: z.ID().optional(),
+    locale: z.string(),
   })
-  .noUnknown()
-  .required();
+  .strict()
+  .refine((data) => {
+    const isSingleType =
+      get('kind', strapi.contentType(data.model as Common.UID.ContentType)) === 'singleType';
 
-const validateGetNonLocalizedAttributesInput = validateYupSchema(
-  validateGetNonLocalizedAttributesSchema
-);
+    if (!isSingleType && isNil(data.id)) {
+      return false;
+    }
+    return true;
+  });
+
+const validateGetNonLocalizedAttributesInput = z.validate(validateGetNonLocalizedAttributesSchema);
 
 export { validateGetNonLocalizedAttributesInput };

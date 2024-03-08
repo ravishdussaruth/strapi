@@ -1,4 +1,4 @@
-import isoLocales from './iso-locales.json';
+import { isoLocales, isoCodes } from './iso-locales';
 
 /**
  * Returns the default locale based either on env var or english
@@ -27,4 +27,4 @@ const getInitLocale = () => {
 
 const DEFAULT_LOCALE = getInitLocale();
 
-export { isoLocales, DEFAULT_LOCALE, getInitLocale };
+export { isoCodes, isoLocales, DEFAULT_LOCALE, getInitLocale };

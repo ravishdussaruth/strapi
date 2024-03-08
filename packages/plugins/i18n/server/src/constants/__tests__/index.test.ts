@@ -22,7 +22,7 @@ describe('I18N default locale', () => {
       expect(() => getInitLocale()).toThrow();
     });
 
-    test('Checks if there are any duplicate locales present in the "iso-locales.json" file', () => {
+    test('Checks if there are any duplicate locales present in the "iso-locales" array', () => {
       const set = new Set(isoLocales.map((item) => item.code)).size !== isoLocales.length;
       expect(set).toBe(false);
     });
